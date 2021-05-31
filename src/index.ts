@@ -4,7 +4,7 @@ import connectRedis from 'connect-redis'
 import cors from 'cors'
 import express from 'express'
 import session from 'express-session'
-import redis from 'redis'
+import Redis from 'ioredis'
 import 'reflect-metadata'
 import { buildSchema } from 'type-graphql'
 
@@ -19,12 +19,12 @@ const main = async () => {
   const app = express()
   app.use(cors({ origin: 'http://localhost:3000', credentials: true }))
   const RedisStore = connectRedis(session)
-  const redisClient = redis.createClient()
+  const RedisClient = new Redis()
 
   app.use(
     session({
       store: new RedisStore({
-        client: redisClient,
+        client: RedisClient,
         disableTouch: true,
         disableTTL: true,
       }),
@@ -46,7 +46,7 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }) => ({ em: orm.em, req, res }),
+    context: ({ req, res }) => ({ em: orm.em, req, res, redis: RedisClient }),
   })
 
   apolloServer.applyMiddleware({ app, cors: false })

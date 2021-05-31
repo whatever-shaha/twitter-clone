@@ -18,7 +18,24 @@ export class withEmailInput extends UsernamePasswordInput {
   email: string
 }
 
-//type def for User
+//input type for change password resolver
+
+@InputType()
+export class ChangePasswordInput {
+  @Field()
+  newPassword: string
+
+  @Field()
+  repeatNewPassword: string
+
+  @Field(() => String, { nullable: true })
+  token?: string
+
+  @Field(() => String, { nullable: true })
+  currentPassword?: string
+}
+
+//type def for User error
 @ObjectType()
 export class FieldError {
   @Field()
@@ -33,6 +50,9 @@ export class FieldError {
 export class UserResponse {
   @Field(() => [FieldError], { nullable: true })
   errors?: FieldError[]
+
+  @Field(() => FieldError, { nullable: true })
+  error?: FieldError
 
   @Field(() => User, { nullable: true })
   user?: User
