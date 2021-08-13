@@ -78,15 +78,29 @@ export class UserResolver {
           },
         ],
       }
+
     //checking whether there is any dublicates
     const candidate = await em.findOne(User, { username: options.username })
 
-    if (candidate)
+    if (candidate) {
       return {
         errors: [
           {
             field: 'username',
             message: 'User with this username is already exists',
+          },
+        ],
+      }
+    }
+
+    const candidatEmail = await em.findOne(User, { email: options.email })
+
+    if (candidatEmail)
+      return {
+        errors: [
+          {
+            field: 'email',
+            message: 'User with this e-mail is already exists',
           },
         ],
       }
@@ -150,7 +164,7 @@ export class UserResolver {
     await redis.set(token, user.id)
     await sendEmail({
       sendTo: user.email,
-      html: `<a href = ${process.env.HOST_URL}/${CHANGE_PASSWORD_URI}/${token}>
+      html: `<a href = "${process.env.HOST_URL}/${CHANGE_PASSWORD_URI}/${token}" >
                 Confirm E-mail
               </a>`,
     })

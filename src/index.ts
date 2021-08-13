@@ -7,17 +7,20 @@ import session from 'express-session'
 import Redis from 'ioredis'
 import 'reflect-metadata'
 import { buildSchema } from 'type-graphql'
+import dotenv from 'dotenv'
 
 import mikroConfig from './mikro-orm.config'
 import { PostResolver } from './resolvers/post'
 import { UserResolver } from './resolvers/User/user'
 import { COOKIE_NAME, __port__, __prod__ } from './utils/constants'
 
+dotenv.config()
+
 const main = async () => {
   const orm = await MikroORM.init(mikroConfig)
   await orm.getMigrator().up()
   const app = express()
-  app.use(cors({ origin: 'http://localhost:3000', credentials: true }))
+  app.use(cors({ origin: process.env.HOST_URL, credentials: true }))
   const RedisStore = connectRedis(session)
   const RedisClient = new Redis()
 
