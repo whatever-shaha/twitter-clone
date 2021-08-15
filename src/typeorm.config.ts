@@ -1,23 +1,23 @@
-import { MikroORM } from '@mikro-orm/core'
-import dotenv from 'dotenv'
-import path from 'path'
 import { __prod__ } from './utils/constants'
 import { Post } from './entities/Post'
 import { User } from './entities/User'
-dotenv.config()
+import { ConnectionOptions } from 'typeorm'
 
-export default {
-  migrations: {
-    path: path.join(__dirname, '/migrations'),
-    pattern: /^[\w-]+\d+\.[tj]s$/,
-  },
+export const typeormConfig: ConnectionOptions = {
+  // migrations: {
+  //   path: path.join(__dirname, '/migrations'),
+  //   pattern: /^[\w-]+\d+\.[tj]s$/,
+  // },
   entities: [Post, User],
-  dbName: 'fullstack',
-  password: 'qwesad',
-  type: 'postgresql',
-  debug: !__prod__,
-} as Parameters<typeof MikroORM.init>[0]
+  database: 'graphql',
+  username: 'postgres',
+  password: '221199',
+  type: 'postgres',
+  synchronize: true,
+  logging: !__prod__,
+}
 
+//
 // export default {
 //   migrations: {
 //     path: path.join(__dirname, '/migrations'),

@@ -1,24 +1,24 @@
-import { MikroORM } from '@mikro-orm/core'
+import 'reflect-metadata'
 import { ApolloServer } from 'apollo-server-express'
 import connectRedis from 'connect-redis'
 import cors from 'cors'
 import express from 'express'
 import session from 'express-session'
 import Redis from 'ioredis'
-import 'reflect-metadata'
 import { buildSchema } from 'type-graphql'
 import dotenv from 'dotenv'
-
-import mikroConfig from './mikro-orm.config'
+import { createConnection } from 'typeorm'
 import { PostResolver } from './resolvers/post'
 import { UserResolver } from './resolvers/User/user'
 import { COOKIE_NAME, __port__, __prod__ } from './utils/constants'
+import { typeormConfig } from './typeorm.config'
 
 dotenv.config()
 
 const main = async () => {
-  const orm = await MikroORM.init(mikroConfig)
-  await orm.getMigrator().up()
+  await createConnection(typeormConfig)
+  // const orm = await ormConnection.connect()
+
   const app = express()
   app.use(cors({ origin: process.env.HOST_URL, credentials: true }))
   const RedisStore = connectRedis(session)
@@ -49,7 +49,7 @@ const main = async () => {
       resolvers: [PostResolver, UserResolver],
       validate: false,
     }),
-    context: ({ req, res }) => ({ em: orm.em, req, res, redis: RedisClient }),
+    context: ({ req, res }) => ({ req, res, redis: RedisClient }),
   })
 
   apolloServer.applyMiddleware({ app, cors: false })

@@ -19,17 +19,15 @@ dotenv.config()
 @Resolver()
 export class UserResolver {
   @Query(() => User, { nullable: true })
-  async me(@Ctx() { req, em }: MyContext): Promise<User | null> {
+  me(@Ctx() { req }: MyContext): Promise<User | undefined> {
     const id = req.session.userId
-    if (!id) return null
-    const user = await em.findOne(User, { id })
-    return user
+    return User.findOne(id)
   }
 
   @Mutation(() => UserResponse)
   async register(
     @Arg('options') options: withEmailInput,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
     //validation for minimal lenght for password & username
     const passwordLengthRule = options.password.length <= 5
@@ -80,7 +78,7 @@ export class UserResolver {
       }
 
     //checking whether there is any dublicates
-    const candidate = await em.findOne(User, { username: options.username })
+    const candidate = await User.findOne({ where: { username: options.username } })
 
     if (candidate) {
       return {
@@ -93,7 +91,7 @@ export class UserResolver {
       }
     }
 
-    const candidatEmail = await em.findOne(User, { email: options.email })
+    const candidatEmail = await User.findOne({ where: { email: options.email } })
 
     if (candidatEmail)
       return {
@@ -106,12 +104,12 @@ export class UserResolver {
       }
 
     const hashedPassword = await argon2.hash(options.password)
-    const user = em.create(User, {
+    const user = User.create({
       username: options.username,
       email: options.email,
       password: hashedPassword,
     })
-    await em.persistAndFlush(user)
+    await User.insert(user)
     req.session.userId = user.id
     return { user }
   }
@@ -120,14 +118,13 @@ export class UserResolver {
   async login(
     @Arg('usernameOrEmail') usernameOrEmail: string,
     @Arg('password') password: string,
-    @Ctx() { em, req }: MyContext
+    @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
-    const candidate = await em.findOne(
-      User,
-      isEmail(usernameOrEmail)
+    const candidate = await User.findOne({
+      where: isEmail(usernameOrEmail)
         ? { email: usernameOrEmail }
-        : { username: usernameOrEmail }
-    )
+        : { username: usernameOrEmail },
+    })
 
     if (!candidate) {
       return {
@@ -149,14 +146,13 @@ export class UserResolver {
   @Mutation(() => Boolean)
   async passwordRecovery(
     @Arg('usernameOrEmail') usernameOrEmail: string,
-    @Ctx() { em, redis }: MyContext
+    @Ctx() { redis }: MyContext
   ): Promise<boolean> {
-    const user = await em.findOne(
-      User,
-      isEmail(usernameOrEmail)
+    const user = await User.findOne({
+      where: isEmail(usernameOrEmail)
         ? { email: usernameOrEmail }
-        : { username: usernameOrEmail }
-    )
+        : { username: usernameOrEmail },
+    })
     if (!user) return false
 
     const token = v4()
@@ -175,7 +171,7 @@ export class UserResolver {
   @Mutation(() => UserResponse)
   async passwordChange(
     @Arg('options') options: ChangePasswordInput,
-    @Ctx() { em, req, redis }: MyContext
+    @Ctx() { req, redis }: MyContext
   ): Promise<UserResponse> {
     //validating and then creating hashed password
     if (options.newPassword.length <= 5) {
@@ -210,7 +206,7 @@ export class UserResolver {
           ],
         }
       }
-      const user = await em.findOne(User, { id: parseInt(userId) })
+      const user = await User.findOne({ where: { id: userId } })
       if (!user) {
         return {
           errors: [
@@ -223,13 +219,13 @@ export class UserResolver {
       }
 
       user.password = hashedPassword
-      await em.persistAndFlush(user)
+      await User.update({ id: userId as any }, { password: hashedPassword })
       req.session.userId = user.id
       return { user }
       // if changing pass word through personal cabinet
     } else if (req.session.userId && options.currentPassword) {
       const { userId } = req.session
-      const user = await em.findOne(User, { id: userId })
+      const user = await User.findOne({ where: { id: userId } })
       if (!user) {
         return {
           error: { field: 'authorization', message: 'You are not authorized' },
@@ -247,7 +243,7 @@ export class UserResolver {
       }
 
       user.password = hashedPassword
-      await em.persistAndFlush(user)
+      await User.update({ id: userId }, { password: hashedPassword })
       req.session.userId = user.id
       return { user }
     }
@@ -283,14 +279,14 @@ export class UserResolver {
   ////////dev mutations and queries//////////
   ///////////////////////////////////////////
   @Query(() => [User])
-  async users(@Ctx() { em }: MyContext): Promise<User[]> {
-    const users = await em.find(User, {})
+  async users(): Promise<User[]> {
+    const users = await User.find()
     return users
   }
 
   @Mutation(() => Boolean)
-  async clearUsers(@Ctx() { em }: MyContext): Promise<boolean> {
-    await em.nativeDelete(User, {})
+  async clearUsers(): Promise<boolean> {
+    await User.delete({})
     return true
   }
 }
