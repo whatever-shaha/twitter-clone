@@ -1,9 +1,10 @@
 import argon2 from 'argon2'
 import dotenv from 'dotenv'
 import { Arg, Ctx, Mutation, Query, Resolver } from 'type-graphql'
+import { getConnection } from 'typeorm'
 import { v4 } from 'uuid'
 
-import { User } from '../../entities/User'
+import { Author } from '../../entities/Author'
 import { CHANGE_PASSWORD_URI, COOKIE_NAME } from '../../utils/constants'
 import { sendEmail } from '../../utils/sendEmail'
 import { MyContext } from '../../utils/types'
@@ -18,12 +19,25 @@ dotenv.config()
 
 @Resolver()
 export class UserResolver {
-  @Query(() => User, { nullable: true })
-  me(@Ctx() { req }: MyContext): Promise<User | undefined> {
+  @Query(() => Author, { nullable: true })
+  me(@Ctx() { req }: MyContext): Promise<Author | undefined> {
     const id = req.session.userId
-    return User.findOne(id)
+    return Author.findOne(id)
   }
-
+  @Mutation(() => UserResponse)
+  async tester(
+    @Arg('options') { email, username }: withEmailInput
+  ): Promise<UserResponse | undefined> {
+    const result = await getConnection()
+      .createQueryBuilder()
+      .select('*')
+      .from(Author, 'user')
+      .where('user.username = :username', { username })
+      .orWhere('user.email = :email', { email })
+      .execute()
+    console.log(result[0])
+    return { user: result[0] }
+  }
   @Mutation(() => UserResponse)
   async register(
     @Arg('options') options: withEmailInput,
@@ -77,41 +91,31 @@ export class UserResolver {
         ],
       }
 
-    //checking whether there is any dublicates
-    const candidate = await User.findOne({ where: { username: options.username } })
-
-    if (candidate) {
+    const hashedPassword = await argon2.hash(options.password)
+    try {
+      const user = Author.create({
+        username: options.username,
+        email: options.email,
+        password: hashedPassword,
+      })
+      await Author.insert(user)
+      req.session.userId = user.id
+      return { user }
+    } catch (error) {
+      if (error.code === '23505') {
+        const field = error.detail.includes(' (email)=(') ? 'email' : 'username'
+        console.log(field)
+        return {
+          error: { field, message: `User with this ${field} is already exists.` },
+        }
+      }
       return {
-        errors: [
-          {
-            field: 'username',
-            message: 'User with this username is already exists',
-          },
-        ],
+        error: {
+          field: 'unknown',
+          message: 'something went wrong',
+        },
       }
     }
-
-    const candidatEmail = await User.findOne({ where: { email: options.email } })
-
-    if (candidatEmail)
-      return {
-        errors: [
-          {
-            field: 'email',
-            message: 'User with this e-mail is already exists',
-          },
-        ],
-      }
-
-    const hashedPassword = await argon2.hash(options.password)
-    const user = User.create({
-      username: options.username,
-      email: options.email,
-      password: hashedPassword,
-    })
-    await User.insert(user)
-    req.session.userId = user.id
-    return { user }
   }
 
   @Mutation(() => UserResponse)
@@ -120,11 +124,15 @@ export class UserResolver {
     @Arg('password') password: string,
     @Ctx() { req }: MyContext
   ): Promise<UserResponse> {
-    const candidate = await User.findOne({
-      where: isEmail(usernameOrEmail)
-        ? { email: usernameOrEmail }
-        : { username: usernameOrEmail },
-    })
+    const candidate: Author = (
+      await getConnection()
+        .createQueryBuilder()
+        .select('*')
+        .from(Author, 'user')
+        .where('user.username = :username', { username: usernameOrEmail })
+        .orWhere('user.email =:email', { email: usernameOrEmail })
+        .execute()
+    )[0]
 
     if (!candidate) {
       return {
@@ -148,7 +156,7 @@ export class UserResolver {
     @Arg('usernameOrEmail') usernameOrEmail: string,
     @Ctx() { redis }: MyContext
   ): Promise<boolean> {
-    const user = await User.findOne({
+    const user = await Author.findOne({
       where: isEmail(usernameOrEmail)
         ? { email: usernameOrEmail }
         : { username: usernameOrEmail },
@@ -158,14 +166,18 @@ export class UserResolver {
     const token = v4()
 
     await redis.set(token, user.id)
-    await sendEmail({
-      sendTo: user.email,
-      html: `<a href = "${process.env.HOST_URL}/${CHANGE_PASSWORD_URI}/${token}" >
-                Confirm E-mail
-              </a>`,
-    })
-
-    return true
+    try {
+      await sendEmail({
+        sendTo: user.email,
+        html: `<a href = "${process.env.HOST_URL}/${CHANGE_PASSWORD_URI}/${token}" >
+                  Confirm E-mail
+                </a>`,
+      })
+      //
+      return true
+    } catch (error) {
+      return false
+    }
   }
 
   @Mutation(() => UserResponse)
@@ -206,7 +218,7 @@ export class UserResolver {
           ],
         }
       }
-      const user = await User.findOne({ where: { id: userId } })
+      const user = await Author.findOne({ where: { id: userId } })
       if (!user) {
         return {
           errors: [
@@ -219,13 +231,13 @@ export class UserResolver {
       }
 
       user.password = hashedPassword
-      await User.update({ id: userId as any }, { password: hashedPassword })
+      await Author.update({ id: userId as any }, { password: hashedPassword })
       req.session.userId = user.id
       return { user }
       // if changing pass word through personal cabinet
     } else if (req.session.userId && options.currentPassword) {
       const { userId } = req.session
-      const user = await User.findOne({ where: { id: userId } })
+      const user = await Author.findOne({ where: { id: userId } })
       if (!user) {
         return {
           error: { field: 'authorization', message: 'You are not authorized' },
@@ -243,7 +255,7 @@ export class UserResolver {
       }
 
       user.password = hashedPassword
-      await User.update({ id: userId }, { password: hashedPassword })
+      await Author.update({ id: userId }, { password: hashedPassword })
       req.session.userId = user.id
       return { user }
     }
@@ -278,15 +290,16 @@ export class UserResolver {
   ///////////////////////////////////////////
   ////////dev mutations and queries//////////
   ///////////////////////////////////////////
-  @Query(() => [User])
-  async users(): Promise<User[]> {
-    const users = await User.find()
+  @Query(() => [Author])
+  async users(): Promise<Author[]> {
+    const users = await Author.find()
     return users
   }
 
   @Mutation(() => Boolean)
   async clearUsers(): Promise<boolean> {
-    await User.delete({})
+    // await getConnection().createQueryBuilder().delete().from(User, 'user').execute()
+    Author.delete({})
     return true
   }
 }

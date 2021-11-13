@@ -3,45 +3,36 @@ import {
   BaseEntity,
   Column,
   CreateDateColumn,
+  DeleteDateColumn,
   Entity,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm'
+import { Post } from './Post'
 import { Author } from './Author'
-import { Rating } from './Rating'
 
 @ObjectType()
 @Entity()
-export class Post extends BaseEntity {
+export class Rating extends BaseEntity {
   @Field()
   @PrimaryGeneratedColumn()
   id!: number
 
+  @Field(() => Post)
+  @ManyToOne(() => Post, (post) => post.rating)
+  ownerPost: Post
+
   @Field(() => Author)
-  @ManyToOne(() => Author, (user) => user.posts)
+  @ManyToOne(() => Author, (author) => author.rates)
   author: Author
 
-  @Field(() => Rating)
-  @OneToMany(() => Rating, (rating) => rating.ownerPost)
-  rating: Rating
+  @Field(() => Boolean)
+  @Column({ type: 'boolean' })
+  isLike!: boolean
 
-  @Field()
-  @Column()
-  title!: string
-
-  @Field()
-  @Column()
-  body!: string
-
-  @Field()
-  @Column({ type: 'int', default: 0 })
-  likes!: number
-
-  @Field()
-  @Column({ type: 'int', default: 0 })
-  dislikes!: number
+  @DeleteDateColumn()
+  deletedDate: Date
 
   @Field(() => String)
   @CreateDateColumn()

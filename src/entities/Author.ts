@@ -4,44 +4,38 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm'
-import { Author } from './Author'
+import { Post } from './Post'
 import { Rating } from './Rating'
 
 @ObjectType()
 @Entity()
-export class Post extends BaseEntity {
+export class Author extends BaseEntity {
   @Field()
   @PrimaryGeneratedColumn()
   id!: number
 
-  @Field(() => Author)
-  @ManyToOne(() => Author, (user) => user.posts)
-  author: Author
+  @Field()
+  @Column({ unique: true })
+  username!: string
+
+  @Field(() => Post)
+  @OneToMany(() => Post, (post) => post.author)
+  posts: Post[]
 
   @Field(() => Rating)
-  @OneToMany(() => Rating, (rating) => rating.ownerPost)
-  rating: Rating
+  @OneToMany(() => Rating, (rating) => rating.author)
+  rates: Rating[]
 
   @Field()
+  @Column({ unique: true })
+  email!: string
+
   @Column()
-  title!: string
-
-  @Field()
-  @Column()
-  body!: string
-
-  @Field()
-  @Column({ type: 'int', default: 0 })
-  likes!: number
-
-  @Field()
-  @Column({ type: 'int', default: 0 })
-  dislikes!: number
+  password!: string
 
   @Field(() => String)
   @CreateDateColumn()

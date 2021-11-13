@@ -1,4 +1,4 @@
-import { User } from '../../entities/User'
+import { Author } from '../../entities/Author'
 import { Field, InputType, ObjectType } from 'type-graphql'
 
 //input type
@@ -54,6 +54,6 @@ export class UserResponse {
   @Field(() => FieldError, { nullable: true })
   error?: FieldError
 
-  @Field(() => User, { nullable: true })
-  user?: User
+  @Field(() => Author, { nullable: true })
+  user?: Author
 }

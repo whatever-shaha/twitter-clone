@@ -1,5 +1,8 @@
-import { Arg, Mutation, Query, Resolver } from 'type-graphql'
+import { Arg, Ctx, Mutation, Query, Resolver, UseMiddleware } from 'type-graphql'
+import { getConnection } from 'typeorm'
 import { Post } from '../entities/Post'
+import { isAuth } from '../middlewares/auth.middleware'
+import { MyContext } from '../utils/types'
 
 @Resolver()
 export class PostResolver {
@@ -7,18 +10,32 @@ export class PostResolver {
   posts(): Promise<Post[]> {
     return Post.find()
   }
-
+  //
   @Query(() => Post)
-  post(@Arg('id') id: number): Promise<Post | undefined> {
-    return Post.findOne(id)
+  async post(@Arg('id') id: number): Promise<Post | undefined> {
+    try {
+      const result = await getConnection()
+        .getRepository(Post)
+        .createQueryBuilder('post')
+        .leftJoinAndSelect('post.author', 'author')
+        .where('post.id =:postId', { postId: id })
+        .getOne()
+      console.log(result)
+      return result
+    } catch (e) {
+      console.log(e)
+      return undefined
+    }
   }
 
   @Mutation(() => Post)
+  @UseMiddleware(isAuth)
   async createPost(
     @Arg('title') title: string,
-    @Arg('body') body: string
+    @Arg('body') body: string,
+    @Ctx() { req }: MyContext
   ): Promise<Post | null> {
-    const post = Post.create({ title, body })
+    const post = Post.create({ title, body, author: { id: req.session.userId } })
     await Post.insert(post)
     return post
   }
